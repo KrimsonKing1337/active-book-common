@@ -13,16 +13,12 @@ const sections = Object.keys(flags);
 const { values } = parseArgs({ options: { repo: { type: 'string', multiple: true } } });
 
 try {
-  const policy = new Map();
-  for (const section of sections) {
-    for (const [name, version] of Object.entries(configuration[section] ?? {})) {
-      if (policy.has(name)) {
-        throw new Error(`${name} appears in more than one activeBook dependency section`);
-      }
-      policy.set(name, { section, version });
-    }
+  const policy = sections.flatMap((section) => Object.entries(configuration[section] ?? {})
+    .map(([name, version]) => ({ name, version, section })));
+  if (new Set(policy.map(({ name }) => name)).size !== policy.length) {
+    throw new Error('A package appears in more than one activeBook dependency section');
   }
-
+  const errors = [];
   for (const repository of repositories(values.repo)) {
     const manifest = readPackage(repository.directory);
     const packages = [{ manifest }];
@@ -33,59 +29,48 @@ try {
       });
       packages.push(...Object.entries(JSON.parse(output)).map(([workspace, manifest]) => ({ workspace, manifest })));
     }
-
     let installations = 0;
     for (const { manifest, workspace } of packages) {
       const groups = new Map();
-      for (const [name, expected] of policy) {
+      for (const { name, version, section } of policy) {
         const declared = sections.filter((section) => Object.hasOwn(manifest[section] ?? {}, name));
         if (!declared.length) {
           continue;
         }
-        if (declared.some((section) => /^(file:|link:|workspace:)|\.tgz$/.test(manifest[section][name]))) {
-          console.log(`[${repository.name}/${workspace ?? 'root'}] SKIP local ${name}`);
+        const context = `[${repository.name}/${workspace ?? 'root'}] ${name}`;
+        if (declared.length !== 1 || declared[0] !== section) {
+          errors.push(`${context}: category mismatch\n  Expected: ${section}\n  Actual: ${declared.join(', ')}\n  No changes made`);
           continue;
         }
-        if (declared.length > 1) {
-          throw new Error(`[${repository.name}/${workspace ?? 'root'}] ${name}: conflicting sections ${declared.join(', ')}`);
-        }
-        const current = declared[0];
-        if (current === expected.section && manifest[current][name] === expected.version) {
+        if (/^(file:|link:|workspace:)|\.tgz$/.test(manifest[section][name])) {
+          console.log(`${context}: SKIP local dependency`);
           continue;
         }
-        if (current !== expected.section && [current, expected.section]
-          .some((section) => section === 'peerDependencies' || section === 'optionalDependencies')) {
-          throw new Error(`[${repository.name}/${workspace ?? 'root'}] ${name}: ${current} -> ${expected.section} changes dependency semantics; resolve explicitly`);
+        if (manifest[section][name] === version) {
+          continue;
         }
-        if (!groups.has(expected.section)) {
-          groups.set(expected.section, []);
+        if (!groups.has(section)) {
+          groups.set(section, []);
         }
-        groups.get(expected.section).push({ name, version: expected.version });
+        groups.get(section).push(`${name}@${version}`);
       }
       for (const [section, dependencies] of groups) {
-        const specs = dependencies.map(({ name, version }) => `${name}@${version}`);
-        const workspaceArgs = workspace ? ['--workspace', workspace] : [];
-        console.log(`[${repository.name}/${workspace ?? 'root'}] ${section}: ${specs.join(' ')}`);
-        // npm install host@range narrows the saved range. Set peer declarations
-        // with npm first, then install without package arguments to preserve them.
-        if (section === 'peerDependencies') {
-          execFileSync(process.execPath, [process.env.npm_execpath, 'pkg', 'set',
-            ...dependencies.map(({ name, version }) => `${section}[${name}]=${version}`), ...workspaceArgs], {
-            cwd: repository.directory,
-            stdio: 'inherit',
-          });
-        }
-        execFileSync(process.execPath, [process.env.npm_execpath, 'install',
-          ...(section === 'peerDependencies' ? [] : specs), flags[section], '--save-exact',
-          '--no-audit', '--no-fund', ...workspaceArgs], {
+        console.log(`[${repository.name}/${workspace ?? 'root'}] ${section}: ${dependencies.join(' ')}`);
+        execFileSync(process.execPath, [process.env.npm_execpath, 'install', ...dependencies, flags[section],
+          '--save-exact', '--no-audit', '--no-fund', ...(workspace ? ['--workspace', workspace] : [])], {
           cwd: repository.directory,
           stdio: 'inherit',
         });
         installations++;
       }
     }
-    console.log(`[${repository.name}] ${installations ? `DONE (${installations} npm installs)` : 'OK: no changes'}`);
+    console.log(`[${repository.name}] DONE (${installations} npm installs)`);
   }
+  if (errors.length) {
+    console.error(`\nConfiguration errors:\n${errors.join('\n')}`);
+    process.exitCode = 1;
+  }
+  console.log(`Finished with ${errors.length} configuration error(s).`);
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

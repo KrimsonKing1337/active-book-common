@@ -1,6 +1,6 @@
 # Общие конфигурации
 
-Все потребители устанавливают `active-book-common: file:../active-book-common`.
+Все потребители устанавливают `@active-book/common: file:../active-book-common`.
 Сначала выполните npm ci в common: npm file:-ссылка разрешается в исходный каталог,
 поэтому зависимости самого config-пакета должны быть установлены там.
 
@@ -8,7 +8,7 @@
 
 ```js
 import { defineConfig, globalIgnores } from 'eslint/config';
-import common, { importOrder } from 'active-book-common/eslint';
+import common, { importOrder } from '@active-book/common/eslint';
 
 export default defineConfig([
   globalIgnores(['dist/**']),
@@ -34,7 +34,7 @@ export default defineConfig([
 Локальная .stylelintrc.js:
 
 ```js
-export { default } from 'active-book-common/stylelint';
+export { default } from '@active-book/common/stylelint';
 ```
 
 Общие SCSS rules и весь style-order используются из одного места. Extends/plugins
@@ -44,10 +44,10 @@ export { default } from 'active-book-common/stylelint';
 
 ## TypeScript
 
-Используйте стандартный extends, например `"extends": "active-book-common/tsconfig.library.json"`.
+Используйте стандартный extends, например `"extends": "@active-book/common/tsconfig.library.json"`.
 Base задаёт strict и явное forceConsistentCasingInFileNames (и ранее включённое по
 умолчанию в TypeScript 5.9). Library задаёт общие настройки emit/interop/SCSS-проектов
-core и custom-test. App задаёт ES2022/DOM, Bundler resolution и noEmit для editor.
+ядра и библиотек. App задаёт ES2022/DOM, Bundler resolution и noEmit для editor.
 
 Локально остаются target библиотек, lib, moduleResolution types, JSX приложений,
 exactOptionalPropertyTypes, types, aliases, include/exclude, baseUrl и outDir.
@@ -56,7 +56,7 @@ exactOptionalPropertyTypes, types, aliases, include/exclude, baseUrl и outDir.
 
 ## Vitest
 
-Export active-book-common/vitest содержит default coverage config и профили unit,
+Export @active-book/common/vitest содержит default coverage config и профили unit,
 component, browser(mode). Browser имеет Playwright, headless Chromium, slowMo=300 в
 preview и прежнее правило имён screenshot: tests/screenshots/<test>/<name>-<browser>-<platform>.
 Это небольшой профиль с одним параметром режима, без универсального конструктора.

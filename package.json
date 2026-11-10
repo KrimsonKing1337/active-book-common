@@ -1,5 +1,5 @@
 {
-  "name": "active-book-common",
+  "name": "@active-book/common",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -25,11 +25,12 @@
     "repositories": {
       "active-book-types": "",
       "active-book-core": "",
-      "active-book-editor": "",
-      "active-book-custom-test": ""
+      "active-book-editor": ""
     },
     "dependencies": {
-      "classnames": "2.5.1"
+      "classnames": "2.5.1",
+      "react": "19.3.1",
+      "react-dom": "19.3.1"
     },
     "devDependencies": {
       "typescript": "5.9.3",

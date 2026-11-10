@@ -1,6 +1,6 @@
 # ActiveBook common
 
-Приватный ESM-пакет с конфигурациями и небольшими скриптами для соседних репозиториев
+Приватный ESM-пакет `@active-book/common` с конфигурациями и небольшими скриптами для соседних репозиториев
 ActiveBook. Требуются Node.js 24.15+ и npm 11+. Репозитории намеренно связаны через
 локальные зависимости; автономная работа без common не предусматривается.
 
@@ -9,8 +9,7 @@ active-book/
 ├── active-book-common/
 ├── active-book-types/
 ├── active-book-core/
-├── active-book-editor/
-└── active-book-custom-test/
+└── active-book-editor/
 ```
 
 Common не является workspace. Workspaces самого editor сохраняются.
@@ -26,7 +25,7 @@ CLI в `npm_execpath`, поэтому поиск npm и shell-экраниров
 ```json
 {
   "devDependencies": {
-    "active-book-common": "file:../active-book-common"
+    "@active-book/common": "file:../active-book-common"
   }
 }
 ```
@@ -35,12 +34,12 @@ CLI в `npm_execpath`, поэтому поиск npm и shell-экраниров
 
 | Export | Назначение |
 | --- | --- |
-| active-book-common/eslint | ESLint Flat Config и общие параметры importOrder |
-| active-book-common/stylelint | SCSS и порядок CSS-свойств, с разрешением плагинов внутри common |
-| active-book-common/tsconfig.base.json | строгая типизация и согласованное написание имён файлов |
-| active-book-common/tsconfig.library.json | настройки компилируемых библиотек core/custom-test |
-| active-book-common/tsconfig.app.json | настройки приложений editor с Bundler resolution |
-| active-book-common/vitest | coverage, unit/component и browser с Playwright/preview/screenshots |
+| @active-book/common/eslint | ESLint Flat Config и общие параметры importOrder |
+| @active-book/common/stylelint | SCSS и порядок CSS-свойств, с разрешением плагинов внутри common |
+| @active-book/common/tsconfig.base.json | строгая типизация и согласованное написание имён файлов |
+| @active-book/common/tsconfig.library.json | настройки компилируемых библиотек core/custom-test |
+| @active-book/common/tsconfig.app.json | настройки приложений editor с Bundler resolution |
+| @active-book/common/vitest | coverage, unit/component и browser с Playwright/preview/screenshots |
 
 Примеры наследования и границы конфигураций: [configs/README.md](configs/README.md).
 ESLint/Stylelint плагины принадлежат common. Исполняемые eslint/stylelint/vitest остаются
@@ -71,10 +70,9 @@ npm штатно обновляет manifest/lock. Корневой пакет �
     "repositories": {
       "active-book-types": "",
       "active-book-core": "",
-      "active-book-editor": "",
-      "active-book-custom-test": ""
+      "active-book-editor": ""
     },
-    "dependencies": { "classnames": "2.5.1" },
+    "dependencies": { "classnames": "2.5.1", "react": "19.3.1", "react-dom": "19.3.1" },
     "devDependencies": { "typescript": "5.9.3", "eslint": "10.14.0" }
   }
 }
@@ -102,27 +100,44 @@ workspace. Если пакет отсутствует, он не добавля�
 | peerDependencies | --save-peer |
 | optionalDependencies | --save-optional |
 
-Изменения группируются: одна категория — один install в соответствующем root/workspace.
-Для prod/dev/optional npm получает существующие пакеты и `--save-exact`. Перенос между
-prod/dev выполняет сам npm. Двойная декларация или перенос с изменением смысла
-peer/optional считается конфликтом и требует явного решения.
+Скрипт синхронизирует только версии **в уже правильной секции**. Одинаковая версия
+не вызывает install. Изменения одной категории группируются в один обычный
+`npm install package@version --save-<category> --save-exact` на root/workspace.
+Категории не меняются автоматически ни для одного типа зависимостей.
 
-Peer-политика может содержать диапазон совместимости. npm install с аргументом
-`package@range` может сузить его до установленной версии. Поэтому для peers сначала
-штатный `npm pkg set` записывает декларации, затем один `npm install --save-peer` без
-аргументов пакетов обновляет установку и lock, сохраняя исходные диапазоны.
-Это также работает для точных peer-версий; собственного semver-парсера нет.
+Несовпадение категории и несколько деклараций одного пакета — ошибки конфигурации.
+Такая зависимость исключается из обновлений; в конце выводятся repo/workspace,
+пакет, Expected/Actual секции и `No changes made`. Корректные пакеты продолжают
+обновляться, в том числе в следующих workspaces/repos. При хотя бы одной такой
+ошибке итоговый exit code равен 1. Конфигурация с одним пакетом в двух секциях самой
+политики также недопустима.
 
-Локальные file:/link:/workspace: и .tgz декларации пропускаются. Версии самих проектов
-не синхронизируются. Без расхождений install не запускается. Ошибка npm прекращает
-синхронизацию с кодом 1; уже сделанные изменения остаются видимыми в Git.
-Нет snapshots, собственного rollback или ручного редактирования lock-файлов.
-Команда устанавливает зависимости и может выполнять обычные npm lifecycle-скрипты.
+Все категории, включая peerDependencies, используют обычный npm install со списком
+пакетов. Специального сохранения peer-диапазонов, npm pkg set и установки без списка
+пакетов нет: npm сохраняет версию по своим правилам. Текущая политика использует точные
+версии и не задаёт общие peer-пакеты.
 
-Начальная политика использует существующие версии: classnames 2.5.1; в dev-секции —
-TypeScript 5.9.3, ESLint 10.14.0, Stylelint 16.26.1, Vitest 4.1.12 и Playwright 1.65.0.
-React/его типы, разные Vite, Node-типы и Jest/Vitest не объединяются произвольно.
-Пустые peer/optional категории можно не указывать, пока согласованной политики для них нет.
+Локальные file:/link:/workspace: и .tgz декларации в ожидаемой секции пропускаются.
+Версии проектов не меняются. Ошибка самого npm прекращает синхронизацию немедленно
+со стандартным выводом npm и ненулевым кодом; отката и повторных попыток нет.
+Lock-файлы обновляет npm, ручного редактирования нет. Обычные lifecycle-скрипты npm
+могут выполняться во время установки.
+
+Политика prod фиксирует classnames 2.5.1, React и React DOM **19.3.1 без диапазонов**.
+Dev-политика: TypeScript 5.9.3, ESLint 10.14.0, Stylelint 16.26.1, Vitest 4.1.12,
+Playwright 1.65.0. React-типы, разные Vite/Node-типы и Jest не унифицируются произвольно.
+Пустые peer/optional секции можно не указывать.
+
+В `@active-book/book-builder` React остаётся peerDependency `^19.2.3`. Общая политика
+ожидает dependencies, поэтому deps:sync честно сообщает одну ошибку конфигурации и
+не меняет ни секцию, ни версию этой декларации. Runtime-dependencies core и двух
+приложений editor фиксируются на 19.3.1. Решение о категории React для book-builder
+должно приниматься явно, отдельно от синхронизации версий.
+
+Управляются только types, core и editor. `active-book-custom-test` и
+`active-book-custom-test-book` не зарегистрированы и не участвуют в deps:sync,
+check, lint, test или подгруппах; явный --repo с этими именами отклоняется.
+Они обслуживаются вручную, их зависимости не изменяются.
 
 ## Проверки
 
@@ -149,7 +164,7 @@ npm run test:unit -- --repo active-book-types,active-book-editor
 ```
 
 Порядок ключей activeBook.repositories является порядком зависимостей: types, core,
-editor, custom-test. Простой фильтр его сохраняет. Пустой путь означает `../<repo>`
+editor. Простой фильтр его сохраняет. Пустой путь означает `../<repo>`
 от common; непустой путь — явный абсолютный или относительный к common.
 
 Проверки не устанавливают зависимости самих репозиториев. Отсутствующие scripts отмечаются SKIP; вывод
@@ -189,37 +204,30 @@ npm run init:repo -- --repo active-book-new-project
 - tests/ — сценарии CLI, настоящий npm с локальным registry и загрузка конфигураций.
 
 Тесты проверяют категории/flags, необязательные секции, отсутствие лишних установок,
-workspace manifests/locks, peer-диапазоны, конфликты, выбор всех групп, пропуски,
+workspace manifests/locks, ошибки категорий без переноса, продолжение обновлений и исключение
+тестовых repos, выбор всех групп, пропуски,
 продолжение после ошибок и init без перезаписи. Нативный npm-тест использует только
 временные данные и локальный HTTP registry. Конфигурации проверяются в core/editor,
 а Vitest дополнительно запускается в новом временном проекте с unit и jsdom.
 Архивный процесс редактора проверяется отдельным offline npm-тестом.
 
 
-## Результат проверки рефакторинга
+## Проверка текущего изменения
 
-Проверено на Linux, Node.js 24.19.0, npm 11.9.0:
+`deps-sync.js` сокращён с 92 до 77 строк. Удалены автоматические переносы prod/dev,
+специальные ветвления peer/optional, npm pkg set и install без списка пакетов.
+Ошибки категорий теперь собираются в массив строк; одна общая проверка исключает
+обновление всех конфликтующих деклараций.
 
-- npm ci прошёл во всех пяти репозиториях, без старых node_modules.
-- npm run test:infrastructure: 12 тестов, включая настоящий npm/local registry и
-  новый Vitest-проект с unit/jsdom.
-- Финальный npm run check с системным Chromium: types 3, core 7, editor 9,
-  custom-test 1 — всего 20 npm-проверок, без ошибок. В их числе 47 Jest-тестов,
-  8 scss-alias, 62 browser-теста core, 67 unit, 8 component и 14 browser-тестов editor,
-  offline-тест packageCore и production runtime scenario.
-- Полная сборка core/установка архива через core:package и build:editor/build:book
-  прошли. make штатно изменил core с 0.0.57 на 0.0.58; editor сохраняет архив 0.0.58.
-- deps:sync применён к реальным repos, зафиксировав уже используемые версии.
-  Повторный запуск: OK: no changes во всех четырёх repos, без install.
-- Эффективные ESLint/Stylelint rules сопоставлены с исходными; compilerOptions всех
-  девяти tsconfig сохранены, кроме явно записанного уже действующего casing default.
+Тесты включают настоящий npm/local registry: конфликтующая зависимость остаётся в
+своей секции с исходной строкой версии, корректные версии/lock/workspaces обновляются.
+Переименование npm-пакета проверяется загрузкой общих ESLint/Stylelint/TypeScript/Vitest
+конфигураций и запуском нового Vitest-проекта. Windows/macOS нативно не запускались.
 
-Один ранний test:runtime под параллельной нагрузкой получил толщину 50 вместо 45.
-Сценарий прошёл на исходной ревизии, при отдельном повторе и в финальном общем check;
-runtime-код и сам сценарий не менялись. Это остаётся сигналом нестабильности теста.
-ESLint выводит существующие предупреждения, сборка — предупреждения о размере chunks.
-Windows/macOS нативно не запускались; новые скрипты используют Node API без shell.
 
-Скрипты common + packageCore сократились с 525 до 237 строк, с 9 до 5 файлов.
-Из core/editor удалены 18 файлов дублировавшегося style-order. Новые профили и presets
-добавлены явно; тесты больше не удерживают старый поиск npm, rollback или обход globs.
+Проверено для этого изменения: 14 тестов common (включая настоящий npm/local registry),
+проверки типов всех трёх управляемых repos, TypeScript/CSS lint, unit-тесты (47 Jest,
+8 scss-alias, 67 unit редактора и offline-тест архива), 8 component-тестов и build:editor.
+Повторный deps:sync не запускает install и возвращает код 1 только из-за сохранённой
+peer-декларации React в book-builder. Браузерные suites в этой задаче не перезапускались.
+Файлы и зависимости тестовых репозиториев не изменены.

@@ -14,7 +14,7 @@ export function repositories(names) {
     }
   }
 
-  // Configuration order is the dependency order: types, core, editor, custom-test.
+  // Configuration order is the dependency order: types, core, editor.
   return Object.entries(configuration.repositories)
     .filter(([name]) => !selected || selected.includes(name))
     .map(([name, directory]) => ({ name, directory: resolve(root, directory || `../${name}`) }));

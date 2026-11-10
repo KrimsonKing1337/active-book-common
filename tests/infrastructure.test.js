@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { test } from 'node:test';
 
@@ -72,12 +73,12 @@ test('standard sections map to npm flags; changes are grouped and workspaces use
   const f = await fixture(t, {
     dependencies: { runtime: '2.0.0' },
     devDependencies: { tool: '2.0.0', compiler: '2.0.0', absent: '2.0.0', local: '2.0.0' },
-    peerDependencies: { host: '^2.0.0' },
+    peerDependencies: { host: '2.0.0' },
     optionalDependencies: { extra: '2.0.0' },
   });
   await json(join(f.parent, 'first/package.json'), {
-    workspaces: ['packages/*'], dependencies: { tool: '^1.0.0' },
-    devDependencies: { compiler: '^1.0.0', runtime: '^1.0.0', local: 'file:../local.tgz' },
+    workspaces: ['packages/*'], dependencies: { runtime: '^1.0.0' },
+    devDependencies: { tool: '^1.0.0', compiler: '^1.0.0', local: 'file:../local.tgz' },
     peerDependencies: { host: '^1.0.0' }, optionalDependencies: { extra: '^1.0.0' },
   });
   await f.run('deps-sync', ['--repo=first'], {
@@ -89,22 +90,68 @@ test('standard sections map to npm flags; changes are grouped and workspaces use
   assert.equal(installs.length, 5);
   assert.ok(installs.some(({ args }) => args.includes('--save-dev') && args.includes('tool@2.0.0') && args.includes('compiler@2.0.0')));
   assert.ok(installs.some(({ args }) => args.includes('--save-prod') && args.includes('runtime@2.0.0')));
-  assert.ok(installs.some(({ args }) => args.includes('--save-peer')));
-  assert.ok(calls.some(({ args }) => args.includes('set') && args.includes('peerDependencies[host]=^2.0.0')));
+  assert.ok(installs.some(({ args }) => args.includes('--save-peer') && args.includes('host@2.0.0')));
+  assert.ok(calls.every(({ args }) => args[0] === 'install' || (args[0] === 'pkg' && args[1] === 'get')));
   assert.ok(installs.some(({ args }) => args.includes('--save-optional') && args.includes('extra@2.0.0')));
   assert.ok(installs.some(({ args }) => args.includes('--workspace') && args.includes('workspace')));
   assert.ok(installs.every(({ args }) => !args.some((arg) => arg.startsWith('absent@') || arg.startsWith('local@'))));
 });
 
-test('ambiguous dual declarations and duplicate policies fail before installation', async (t) => {
+test('dual declarations report configuration errors; duplicate policies fail before installation', async (t) => {
   const f = await fixture(t, { peerDependencies: { host: '^1.0.0' } });
   await json(join(f.parent, 'first/package.json'), {
     devDependencies: { host: '1.0.0' }, peerDependencies: { host: '^1.0.0' },
   });
-  await assert.rejects(f.run('deps-sync'), /conflicting sections/);
+  await assert.rejects(f.run('deps-sync'), /Actual: devDependencies, peerDependencies/);
   f.configuration.devDependencies = { host: '1.0.0' };
   await json(join(f.common, 'package.json'), { type: 'module', activeBook: f.configuration });
   await assert.rejects(f.run('deps-sync'), /more than one/);
+  assert.deepEqual(await f.recorded(), []);
+});
+
+test('category errors collect across roots/workspaces while valid version updates continue', async (t) => {
+  const f = await fixture(t, { devDependencies: { wrong: '2.0.0', dual: '2.0.0', good: '2.0.0' } });
+  const first = join(f.parent, 'first/package.json');
+  await json(first, {
+    workspaces: ['packages/*'], dependencies: { wrong: '1.0.0', dual: '1.0.0' },
+    devDependencies: { dual: '1.0.0', good: '1.0.0' },
+  });
+  const before = await readFile(first, 'utf8');
+  await json(join(f.parent, 'second/package.json'), { devDependencies: { good: '1.0.0' } });
+  await assert.rejects(f.run('deps-sync', [], {
+    WORKSPACES: JSON.stringify({ workspace: {
+      dependencies: { wrong: '1.0.0' }, devDependencies: { good: '1.0.0' },
+    } }),
+  }), (error) => {
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /Expected: devDependencies/);
+    assert.match(error.stderr, /Actual: dependencies, devDependencies/);
+    assert.match(error.stderr, /first\/workspace.*wrong: category mismatch/);
+    assert.match(error.stdout, /Finished with 3 configuration error/);
+
+    return true;
+  });
+  const installs = (await f.recorded()).filter(({ args }) => args[0] === 'install');
+  assert.equal(installs.length, 3);
+  assert.ok(installs.every(({ args }) => args.includes('good@2.0.0')
+    && !args.some((arg) => /^(wrong|dual)@/.test(arg))));
+  assert.equal(installs.at(-1).cwd, join(f.parent, 'second'));
+  assert.equal(await readFile(first, 'utf8'), before);
+});
+
+test('test repositories are excluded from synchronization and all common check groups', async (t) => {
+  const manifest = JSON.parse(await readFile(new URL('package.json', source)));
+  assert.deepEqual(Object.keys(manifest.activeBook.repositories), [
+    'active-book-types', 'active-book-core', 'active-book-editor',
+  ]);
+  const f = await fixture(t);
+  for (const name of ['active-book-custom-test', 'active-book-custom-test-book']) {
+    for (const [script, args] of [['deps-sync', []], ['check', ['check']]]) {
+      await assert.rejects(execute(process.execPath, [fileURLToPath(new URL(`scripts/${script}.js`, source)),
+        ...args, `--repo=${name}`], { env: { ...process.env, npm_execpath: join(f.parent, 'npm.cjs') } }),
+      /Unknown repository/);
+    }
+  }
   assert.deepEqual(await f.recorded(), []);
 });
 
@@ -175,10 +222,10 @@ test('init:repo copies minimal presets, preserves existing files and supports ex
   assert.notEqual(await readFile(agents, 'utf8'), 'local rules');
 });
 
-test('real npm moves prod/dev dependencies, preserves peer ranges and updates workspace manifests/locks', async (t) => {
+test('real npm updates versions/locks and workspaces without moving a conflicting dependency', async (t) => {
   const f = await fixture(t, {
     dependencies: { runtime: '1.1.0' }, devDependencies: { tool: '1.1.0' },
-    peerDependencies: { host: '>=1.0.0 <2' }, optionalDependencies: { extra: '1.1.0' },
+    peerDependencies: { host: '1.1.0' }, optionalDependencies: { extra: '1.1.0' },
   });
   const archives = new Map();
   const npm = process.env.npm_execpath;
@@ -211,15 +258,21 @@ test('real npm moves prod/dev dependencies, preserves peer ranges and updates wo
   await json(join(f.parent, 'first/packages/a/package.json'), {
     name: 'workspace-a', version: '1.0.0', devDependencies: { tool: '^1.0.0' },
   });
-  await f.run('deps-sync', ['--repo=first'], {
+  await assert.rejects(f.run('deps-sync', ['--repo=first'], {
     npm_execpath: npm, npm_config_cache: join(f.parent, 'cache'),
     npm_config_registry: `http://127.0.0.1:${server.address().port}`,
+  }), (error) => {
+    assert.equal(error.code, 1);
+    assert.match(error.stderr, /tool: category mismatch/);
+    assert.match(error.stdout, /Finished with 1 configuration error/);
+
+    return true;
   });
   const manifest = JSON.parse(await readFile(join(f.parent, 'first/package.json'), 'utf8'));
   assert.equal(manifest.dependencies.runtime, '1.1.0');
-  assert.equal(manifest.dependencies.tool, undefined);
-  assert.equal(manifest.devDependencies.tool, '1.1.0');
-  assert.equal(manifest.peerDependencies.host, '>=1.0.0 <2');
+  assert.equal(manifest.dependencies.tool, '^1.0.0');
+  assert.equal(manifest.devDependencies?.tool, undefined);
+  assert.equal(manifest.peerDependencies.host, '1.1.0');
   assert.equal(manifest.optionalDependencies.extra, '1.1.0');
   const lock = JSON.parse(await readFile(join(f.parent, 'first/package-lock.json'), 'utf8'));
   assert.equal(lock.packages['packages/a'].devDependencies.tool, '1.1.0');

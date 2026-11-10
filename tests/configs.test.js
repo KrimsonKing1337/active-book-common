@@ -11,7 +11,7 @@ import { ESLint } from 'eslint';
 import stylelint from 'stylelint';
 import typescript from 'typescript';
 
-import common, { browser, component, unit } from 'active-book-common/vitest';
+import common, { browser, component, unit } from '@active-book/common/vitest';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 
@@ -34,7 +34,6 @@ test('TypeScript profiles retain local module resolution, targets and output pat
   for (const [name, resolution, target] of [
     ['types', typescript.ModuleResolutionKind.NodeNext, typescript.ScriptTarget.ES2022],
     ['core', typescript.ModuleResolutionKind.Node10, typescript.ScriptTarget.ES2020],
-    ['custom-test', typescript.ModuleResolutionKind.Node10, typescript.ScriptTarget.ES5],
     ['editor/apps/editor', typescript.ModuleResolutionKind.Bundler, typescript.ScriptTarget.ES2022],
   ]) {
     const directory = path.resolve(root, `../active-book-${name}`);
@@ -46,7 +45,7 @@ test('TypeScript profiles retain local module resolution, targets and output pat
     assert.equal(config.options.strict, true, name);
     assert.equal(config.options.moduleResolution, resolution, name);
     assert.equal(config.options.target, target, name);
-    if (name === 'core' || name === 'custom-test') {
+    if (name === 'core') {
       assert.equal(config.options.outDir, path.join(directory, 'lib'));
       assert.equal(config.options.declaration, true);
     }
@@ -69,12 +68,13 @@ test('a new project can run real unit/component tests from the shared Vitest pro
   const directory = await mkdtemp(path.join(tmpdir(), 'active book vitest-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await mkdir(path.join(directory, 'node_modules'));
-  for (const [name, source] of [['active-book-common', root], ['vitest', path.join(root, 'node_modules/vitest')]]) {
+  for (const [name, source] of [['@active-book/common', root], ['vitest', path.join(root, 'node_modules/vitest')]]) {
+    await mkdir(path.dirname(path.join(directory, 'node_modules', name)), { recursive: true });
     await symlink(source, path.join(directory, 'node_modules', name), 'junction');
   }
   await writeFile(path.join(directory, 'package.json'), '{"type":"module"}');
   await writeFile(path.join(directory, 'vitest.config.ts'), `
-    import shared, {unit, component} from 'active-book-common/vitest';
+    import shared, {unit, component} from '@active-book/common/vitest';
     import {defineConfig, mergeConfig} from 'vitest/config';
     export default mergeConfig(shared, defineConfig({test:{projects:[
       mergeConfig(unit,{extends:true,test:{include:['unit.test.ts']}}),

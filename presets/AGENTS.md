@@ -3,5 +3,5 @@
 # Локальные правила
 
 Репозитории ActiveBook расположены рядом. Установите common и подключите его
-через `active-book-common: file:../active-book-common` в devDependencies.
+через `@active-book/common: file:../active-book-common` в devDependencies.
 Добавьте здесь особенности проекта и его команды проверки.
