@@ -124,8 +124,11 @@ Lock-файлы обновляет npm, ручного редактирован�
 могут выполняться во время установки.
 
 Политика prod фиксирует classnames 2.5.1, React и React DOM **19.3.1 без диапазонов**.
-Dev-политика: TypeScript 5.9.3, ESLint 10.14.0, Stylelint 16.26.1, Vitest 4.1.12,
-Playwright 1.65.0. React-типы, разные Vite/Node-типы и Jest не унифицируются произвольно.
+Dev-политика: @types/react и @types/react-dom 19.3.0, TypeScript 5.9.3, ESLint 10.14.0,
+Stylelint 16.26.1, Vitest 4.1.12, Playwright 1.65.0. Типы React также установлены в
+собственных devDependencies common с точной версией 19.3.0. В types @types/react
+объявлен только в devDependencies; прежняя peer-декларация удалена явно. Отсутствующие
+пакеты по-прежнему не добавляются. Разные Vite/Node-типы и Jest не унифицируются произвольно.
 Пустые peer/optional секции можно не указывать.
 
 В `@active-book/book-builder` React остаётся peerDependency `^19.2.3`. Общая политика
