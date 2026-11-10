@@ -28,14 +28,42 @@
       "@typescript-eslint/eslint-plugin": "8.72.1"
     },
     "checks": {
-      "active-book-types": ["typecheck", "test", "test:bundler"],
-      "active-book-core": ["typecheck", "typecheck:test", "lint:ts:check", "lint:css:check", "test:unit", "test:scss-alias"],
-      "active-book-editor": ["typecheck", "lint:ts:check", "lint:css:check", "test:unit", "test:component", "test:scripts"],
-      "active-book-custom-test": ["typecheck"]
+      "active-book-types": [
+        "typecheck",
+        "test",
+        "test:bundler"
+      ],
+      "active-book-core": [
+        "typecheck",
+        "typecheck:test",
+        "lint:ts:check",
+        "lint:css:check",
+        "test:unit",
+        "test:scss-alias"
+      ],
+      "active-book-editor": [
+        "typecheck",
+        "lint:ts:check",
+        "lint:css:check",
+        "test:unit",
+        "test:component",
+        "test:scripts"
+      ],
+      "active-book-custom-test": [
+        "typecheck"
+      ]
     },
     "browserChecks": {
-      "active-book-core": ["test:browser"],
-      "active-book-editor": ["test:browser", "test:runtime"]
+      "active-book-core": [
+        "test:browser"
+      ],
+      "active-book-editor": [
+        "test:browser",
+        "test:runtime"
+      ]
     }
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6"
   }
 }
