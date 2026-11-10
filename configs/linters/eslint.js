@@ -66,6 +66,7 @@ export default defineConfig({
     'object-newline/object-newline': 'error',
     'import-x/no-default-export': 'warn',
     'curly': ['error', 'all'],
+    'max-params': ['error', { max: 2 }],
 
     'no-unneeded-ternary': ['error', {
       defaultAssignment: true,
@@ -92,6 +93,11 @@ export default defineConfig({
       },
     ],
 
+    '@stylistic/jsx-newline': ['error', {
+      prevent: true,
+      allowMultilines: true,
+    }],
+
     '@stylistic/jsx-closing-tag-location': 'warn',
     '@stylistic/jsx-first-prop-new-line': ['error', 'multiline'],
     '@stylistic/jsx-curly-brace-presence': ['error', 'never'],
@@ -108,5 +114,10 @@ export default defineConfig({
         ignoreRestArgs: false,
       },
     ],
+
+    '@typescript-eslint/consistent-type-imports': ['error', {
+      prefer: 'type-imports',
+      fixStyle: 'separate-type-imports',
+    }],
   },
 });
