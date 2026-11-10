@@ -1,12 +1,12 @@
 import { defineConfig } from 'eslint/config';
-import { fixupPluginRules } from '@eslint/compat';
 import js from '@eslint/js';
 import stylistic from '@stylistic/eslint-plugin';
 import typescript from '@typescript-eslint/eslint-plugin';
 import parser from '@typescript-eslint/parser';
 import importX from 'eslint-plugin-import-x';
-import newlineDestructuring from 'eslint-plugin-newline-destructuring';
 import reactHooks from 'eslint-plugin-react-hooks';
+
+import objectNewline from './rules/object-newline.js';
 
 export const importOrder = {
   'newlines-between': 'always-and-inside-groups',
@@ -19,8 +19,8 @@ export default defineConfig({
   plugins: {
     'import-x': importX,
     '@stylistic': stylistic,
-    'newline-destructuring': fixupPluginRules(newlineDestructuring),
     'react-hooks': reactHooks,
+    'object-newline': objectNewline,
   },
   languageOptions: {
     parser,
@@ -36,38 +36,6 @@ export default defineConfig({
     '@stylistic/indent': ['error', 2],
     '@stylistic/quotes': ['error', 'single'],
     '@stylistic/object-curly-spacing': ['error', 'always'],
-
-    '@stylistic/object-property-newline': ['error',  {
-      allowAllPropertiesOnSameLine: true,
-    }],
-
-    '@stylistic/object-curly-newline': ['error', {
-      ObjectExpression: {
-        minProperties: 3,
-        multiline: true,
-        consistent: true,
-      },
-      ObjectPattern: {
-        minProperties: 3,
-        multiline: true,
-        consistent: true,
-      },
-      TSTypeLiteral: {
-        minProperties: 1,
-        multiline: true,
-        consistent: true,
-      },
-      TSInterfaceBody: {
-        minProperties: 1,
-        multiline: true,
-        consistent: true,
-      },
-      TSEnumBody: {
-        minProperties: 1,
-        multiline: true,
-        consistent: true,
-      }
-    }],
 
     '@stylistic/curly-newline': ['error', {
       'minElements': 1,
@@ -95,6 +63,7 @@ export default defineConfig({
       },
     ],
 
+    'object-newline': 'error',
     'import-x/no-default-export': 'warn',
     'curly': ['error', 'all'],
 
@@ -139,11 +108,5 @@ export default defineConfig({
         ignoreRestArgs: false,
       },
     ],
-
-    'newline-destructuring/newline': ['error', {
-      items: 2,
-      consistent: false,
-      allowAllPropertiesOnSameLine: false,
-    }],
   },
 });
