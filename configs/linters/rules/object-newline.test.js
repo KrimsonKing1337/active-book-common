@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { RuleTester } from 'eslint';
 import parser from '@typescript-eslint/parser';
 
-import objectNewline from './object-newline.js';
+import { rule } from './object-newline.js';
 
 RuleTester.describe = describe;
 RuleTester.it = it;
@@ -25,7 +25,7 @@ const invalid = (code, output) => ({
   errors: [{ messageId: 'multiline' }],
 });
 
-tester.run('active-book/object-newline', objectNewline, {
+tester.run('active-book/object-newline', rule, {
   valid: [
     'const point = { x: 10 };',
     'const point = { x: 10, y: 20 };',

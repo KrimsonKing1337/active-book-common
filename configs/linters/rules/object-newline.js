@@ -1,4 +1,4 @@
-export default {
+export const rule = {
   meta: {
     type: 'layout',
     docs: {
@@ -109,5 +109,11 @@ export default {
       TSInterfaceBody: (node) => check(node, node.body),
       TSEnumBody: (node) => check(node, node.members),
     };
+  },
+};
+
+export default {
+  rules: {
+    'object-newline': rule,
   },
 };

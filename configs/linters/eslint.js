@@ -63,7 +63,7 @@ export default defineConfig({
       },
     ],
 
-    'object-newline': 'error',
+    'object-newline/object-newline': 'error',
     'import-x/no-default-export': 'warn',
     'curly': ['error', 'all'],
 
