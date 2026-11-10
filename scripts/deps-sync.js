@@ -3,19 +3,12 @@ import { parseArgs } from 'node:util';
 
 import { configuration, readPackage, repositories } from './common.js';
 
-const flags = {
-  dependencies: '--save-prod',
-  devDependencies: '--save-dev',
-  peerDependencies: '--save-peer',
-  optionalDependencies: '--save-optional',
-};
-const sections = Object.keys(flags);
+const sections = ['dependencies', 'devDependencies'];
 const { values } = parseArgs({ options: { repo: { type: 'string', multiple: true } } });
 
 try {
-  const policy = sections.flatMap((section) => Object.entries(configuration[section] ?? {})
-    .map(([name, version]) => ({ name, version, section })));
-  if (new Set(policy.map(({ name }) => name)).size !== policy.length) {
+  if (Object.keys(configuration.dependencies ?? {}).some((name) =>
+    Object.hasOwn(configuration.devDependencies ?? {}, name))) {
     throw new Error('A package appears in more than one activeBook dependency section');
   }
   const errors = [];
@@ -31,36 +24,29 @@ try {
     }
     let installations = 0;
     for (const { manifest, workspace } of packages) {
-      const groups = new Map();
-      for (const { name, version, section } of policy) {
-        const declared = sections.filter((section) => Object.hasOwn(manifest[section] ?? {}, name));
-        if (!declared.length) {
+      for (const section of sections) {
+        const updates = [];
+        for (const [name, version] of Object.entries(configuration[section] ?? {})) {
+          const declared = sections.filter((section) => Object.hasOwn(manifest[section] ?? {}, name));
+          if (!declared.length) {
+            continue;
+          }
+          if (declared.length !== 1 || declared[0] !== section) {
+            errors.push(`[${repository.name}/${workspace ?? 'root'}] ${name}: expected ${section}, actual ${declared.join(', ')}; no changes made`);
+            continue;
+          }
+          const current = manifest[section][name];
+          if (current !== version && !/^(file:|link:|workspace:)|\.tgz$/.test(current)) {
+            updates.push(`${name}@${version}`);
+          }
+        }
+        if (!updates.length) {
           continue;
         }
-        const context = `[${repository.name}/${workspace ?? 'root'}] ${name}`;
-        if (declared.length !== 1 || declared[0] !== section) {
-          errors.push(`${context}: category mismatch\n  Expected: ${section}\n  Actual: ${declared.join(', ')}\n  No changes made`);
-          continue;
-        }
-        if (/^(file:|link:|workspace:)|\.tgz$/.test(manifest[section][name])) {
-          console.log(`${context}: SKIP local dependency`);
-          continue;
-        }
-        if (manifest[section][name] === version) {
-          continue;
-        }
-        if (!groups.has(section)) {
-          groups.set(section, []);
-        }
-        groups.get(section).push(`${name}@${version}`);
-      }
-      for (const [section, dependencies] of groups) {
-        console.log(`[${repository.name}/${workspace ?? 'root'}] ${section}: ${dependencies.join(' ')}`);
-        execFileSync(process.execPath, [process.env.npm_execpath, 'install', ...dependencies, flags[section],
-          '--save-exact', '--no-audit', '--no-fund', ...(workspace ? ['--workspace', workspace] : [])], {
-          cwd: repository.directory,
-          stdio: 'inherit',
-        });
+        console.log(`[${repository.name}/${workspace ?? 'root'}] ${section}: ${updates.join(' ')}`);
+        execFileSync(process.execPath, [process.env.npm_execpath, 'install', ...updates,
+          section === 'dependencies' ? '--save-prod' : '--save-dev', '--save-exact', '--no-audit', '--no-fund',
+          ...(workspace ? ['--workspace', workspace] : [])], { cwd: repository.directory, stdio: 'inherit' });
         installations++;
       }
     }

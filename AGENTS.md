@@ -66,10 +66,11 @@
 
 Приватный ESM-пакет `@active-book/common` на Node.js 24.15+ и npm 11+. Не создавайте workspaces.
 Скрипты используют стандартные API Node и npm CLI без shell-команд.
-Запускайте `npm run test:infrastructure` для скриптов common.
+Запускайте `npm run test:infra` для скриптов common.
 `npm run check` проверяет все группы соседних repos, включая браузер; подгруппы выбираются явно.
-`deps:sync` использует стандартные npm install и секции dependencies/devDependencies/peerDependencies/optionalDependencies
+`deps:sync` использует стандартные npm install и только секции dependencies/devDependencies
 внутри activeBook. Не нужны собственный поиск npm, semver-парсер, snapshots и rollback.
 
 `deps:sync` синхронизирует только версии в ожидаемых секциях. Категории никогда не переносит;
-ошибки категорий собирает и продолжает корректные обновления. Тестовые repos не регистрируйте.
+peerDependencies и optionalDependencies полностью игнорирует. Ошибки двух управляемых
+категорий собирает и продолжает корректные обновления. Тестовые repos не регистрируйте.
