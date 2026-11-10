@@ -1,14 +1,16 @@
+import { createRequire } from 'node:module';
 import createConfigOrder from './style-order/configCreator.js';
 
+const require = createRequire(import.meta.url);
 const configOrder = createConfigOrder();
 
 export default {
   allowEmptyInput: true,
-  extends: ['stylelint-config-standard-scss'],
+  extends: [require.resolve('stylelint-config-standard-scss')],
   plugins: [
-    'stylelint-scss',
-    'stylelint-order',
-    'stylelint-declaration-block-no-ignored-properties',
+    require.resolve('stylelint-scss'),
+    require.resolve('stylelint-order'),
+    require.resolve('stylelint-declaration-block-no-ignored-properties'),
   ],
   rules: {
     'selector-pseudo-class-no-unknown': [

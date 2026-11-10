@@ -2,251 +2,225 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { test } from 'node:test';
 
-import { commonRoot, loadConfiguration, parseOptions, readJson, readManifests, readRepositories } from '../scripts/repositories.js';
-import { findNpmCli, runNpm } from '../scripts/npm.js';
-import { findVersions, isRegistryVersion, synchronize } from '../scripts/dependencies/versions.js';
-import { checkRepositories, orderRepositories } from '../scripts/check/checks.js';
-
 const execute = promisify(execFile);
-
-async function temporaryDirectory(t) {
-  const directory = await mkdtemp(join(tmpdir(), 'active book-'));
-  t.after(() => rm(directory, { recursive: true, force: true }));
-
-  return directory;
-}
+const source = new URL('../', import.meta.url);
 
 async function json(path, value) {
-  await mkdir(resolve(path, '..'), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`);
+  await writeFile(path, JSON.stringify(value));
 }
 
-async function fixture(t) {
-  const parent = await temporaryDirectory(t);
-  const root = join(parent, 'common');
-  const directory = join(parent, 'repo');
-  await cp(join(commonRoot, 'scripts'), join(root, 'scripts'), { recursive: true });
-  const configuration = {
-    repositories: { repo: '' },
-    sharedDependencies: { shared: '1.1.0' },
+async function fixture(t, policy = {}) {
+  const parent = await mkdtemp(join(tmpdir(), 'active book-'));
+  t.after(() => rm(parent, { recursive: true, force: true }));
+  const common = join(parent, 'active-book-common');
+  await cp(new URL('scripts', source), join(common, 'scripts'), { recursive: true });
+  await cp(new URL('presets', source), join(common, 'presets'), { recursive: true });
+  const configuration = { repositories: { first: '', second: '' }, ...policy };
+  await json(join(common, 'package.json'), { type: 'module', activeBook: configuration });
+  for (const name of ['first', 'second']) {
+    await mkdir(join(parent, name));
+    await json(join(parent, name, 'package.json'), { name, private: true });
+  }
+  const calls = join(parent, 'calls.jsonl');
+  const npm = join(parent, 'npm.cjs');
+  await writeFile(npm, `
+    const fs = require('node:fs');
+    const args = process.argv.slice(2);
+    fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify({args, cwd:process.cwd()})+'\\n');
+    if (args[0] === 'pkg') console.log(process.env.WORKSPACES || '{}');
+    if (args.includes('fail') || (args[0] === 'install' && process.env.FAIL_INSTALL)) process.exit(7);
+  `);
+  const env = { ...process.env, npm_execpath: npm };
+  const run = (script, args = [], extraEnv = {}) => execute(process.execPath,
+    [join(common, 'scripts', `${script}.js`), ...args], { cwd: parent, env: { ...env, ...extraEnv } });
+  const recorded = async () => {
+    try {
+      return (await readFile(calls, 'utf8')).trim().split('\n').map(JSON.parse);
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        throw error;
+      }
+
+      return [];
+    }
   };
-  await json(join(root, 'package.json'), { type: 'module', activeBook: configuration });
-  await json(join(directory, 'package.json'), {
-    name: 'repo',
-    private: true,
-    version: '0.1.0',
-    workspaces: ['packages/*'],
-    devDependencies: { shared: '^1.0.0' },
-  });
-  await json(join(directory, 'packages/a/package.json'), {
-    name: 'workspace-a',
-    version: '1.0.0',
-    dependencies: { shared: '~1.0.0', special: 'file:local.tgz' },
-    peerDependencies: { shared: '>=1.0.0' },
-  });
-  await json(join(directory, 'packages/b/package.json'), {
-    name: 'workspace-b',
-    version: '1.0.0',
-    optionalDependencies: { shared: '1.0.0' },
-  });
-  const repository = { name: 'repo', directory, manifests: await readManifests(directory) };
 
-  return { parent, root, directory, configuration, repository };
+  return { parent, common, calls, configuration, run, recorded };
 }
 
-test('repo filters, explicit/default paths and unavailable/invalid repositories', async (t) => {
-  const { root, configuration, directory } = await fixture(t);
-  assert.deepEqual(parseOptions(['--repo', 'a,b', '--repo=c']).repositories, ['a', 'b', 'c']);
-  assert.throws(() => parseOptions(['--repo', '']), /requires/);
-  assert.throws(() => parseOptions(['--wat']), /Unknown option/);
-  assert.throws(() => parseOptions(['--browser']), /Unknown option/);
-  const settings = { ...configuration, repositories: { repo: '', alias: directory, missing: '../absent' } };
-  const result = await readRepositories({ root, configuration: settings });
-  assert.deepEqual(result.available.map((repo) => repo.name), ['repo', 'alias']);
-  assert.match(result.errors[0], /missing.*package.json/);
-  await assert.rejects(readRepositories({ root, configuration: settings, repositories: ['unknown'] }), /Unknown repository/);
-  await writeFile(join(directory, 'package.json'), '{broken');
-  assert.equal((await readRepositories({ root, configuration: settings, repositories: ['repo'] })).errors.length, 1);
+test('optional dependency policies are empty; absent and already matching packages cause no install', async (t) => {
+  const f = await fixture(t);
+  await json(join(f.common, 'package.json'), {
+    type: 'module', devDependencies: { tool: '2.0.0' }, activeBook: f.configuration,
+  });
+  await json(join(f.parent, 'first/package.json'), { devDependencies: { tool: '1.0.0' } });
+  await f.run('deps-sync');
+  assert.deepEqual(await f.recorded(), []);
+  f.configuration.devDependencies = { tool: '1.0.0', absent: '2.0.0' };
+  await json(join(f.common, 'package.json'), { type: 'module', activeBook: f.configuration });
+  await json(join(f.parent, 'first/package.json'), { devDependencies: { tool: '1.0.0' } });
+  await f.run('deps-sync');
+  assert.deepEqual(await f.recorded(), []);
 });
 
-test('configuration rejects ranges, malformed sections and ActiveBook version synchronization', async (t) => {
-  const { root, configuration } = await fixture(t);
-  for (const sharedDependencies of [{ shared: '^1.0.0' }, { shared: 1 }, { '@active-book/core': '1.0.0' }, { 'activeBook-core': '1.0.0' }]) {
-    await json(join(root, 'package.json'), { activeBook: { ...configuration, sharedDependencies } });
-    await assert.rejects(loadConfiguration(root), /exact npm version|cannot be synchronized/);
+test('standard sections map to npm flags; changes are grouped and workspaces use native npm discovery', async (t) => {
+  const f = await fixture(t, {
+    dependencies: { runtime: '2.0.0' },
+    devDependencies: { tool: '2.0.0', compiler: '2.0.0', absent: '2.0.0', local: '2.0.0' },
+    peerDependencies: { host: '^2.0.0' },
+    optionalDependencies: { extra: '2.0.0' },
+  });
+  await json(join(f.parent, 'first/package.json'), {
+    workspaces: ['packages/*'], dependencies: { tool: '^1.0.0' },
+    devDependencies: { compiler: '^1.0.0', runtime: '^1.0.0', local: 'file:../local.tgz' },
+    peerDependencies: { host: '^1.0.0' }, optionalDependencies: { extra: '^1.0.0' },
+  });
+  await f.run('deps-sync', ['--repo=first'], {
+    WORKSPACES: JSON.stringify({ workspace: { devDependencies: { tool: '^1.0.0' } } }),
+  });
+  const calls = await f.recorded();
+  assert.deepEqual(calls[0].args, ['pkg', 'get', '--workspaces', '--json']);
+  const installs = calls.filter((call) => call.args[0] === 'install');
+  assert.equal(installs.length, 5);
+  assert.ok(installs.some(({ args }) => args.includes('--save-dev') && args.includes('tool@2.0.0') && args.includes('compiler@2.0.0')));
+  assert.ok(installs.some(({ args }) => args.includes('--save-prod') && args.includes('runtime@2.0.0')));
+  assert.ok(installs.some(({ args }) => args.includes('--save-peer')));
+  assert.ok(calls.some(({ args }) => args.includes('set') && args.includes('peerDependencies[host]=^2.0.0')));
+  assert.ok(installs.some(({ args }) => args.includes('--save-optional') && args.includes('extra@2.0.0')));
+  assert.ok(installs.some(({ args }) => args.includes('--workspace') && args.includes('workspace')));
+  assert.ok(installs.every(({ args }) => !args.some((arg) => arg.startsWith('absent@') || arg.startsWith('local@'))));
+});
+
+test('ambiguous dual declarations and duplicate policies fail before installation', async (t) => {
+  const f = await fixture(t, { peerDependencies: { host: '^1.0.0' } });
+  await json(join(f.parent, 'first/package.json'), {
+    devDependencies: { host: '1.0.0' }, peerDependencies: { host: '^1.0.0' },
+  });
+  await assert.rejects(f.run('deps-sync'), /conflicting sections/);
+  f.configuration.devDependencies = { host: '1.0.0' };
+  await json(join(f.common, 'package.json'), { type: 'module', activeBook: f.configuration });
+  await assert.rejects(f.run('deps-sync'), /more than one/);
+  assert.deepEqual(await f.recorded(), []);
+});
+
+test('npm install failure stops dependency synchronization before the next repository', async (t) => {
+  const f = await fixture(t, { devDependencies: { tool: '2.0.0' } });
+  for (const name of ['first', 'second']) {
+    await json(join(f.parent, name, 'package.json'), { devDependencies: { tool: '1.0.0' } });
   }
-  await json(join(root, 'package.json'), { activeBook: { ...configuration, repositories: { repo: 42 } } });
-  await assert.rejects(loadConfiguration(root), /repository entry/);
+  await assert.rejects(f.run('deps-sync', [], { FAIL_INSTALL: '1' }), { code: 1 });
+  assert.equal((await f.recorded()).length, 1);
 });
 
-test('workspaces support object form, globs, exclusions, duplicate names and malformed sections', async (t) => {
-  const { directory } = await fixture(t);
-  const rootPackage = await readJson(join(directory, 'package.json'));
-  rootPackage.workspaces = { packages: ['packages/*', '!packages/b'] };
-  await json(join(directory, 'package.json'), rootPackage);
-  assert.equal((await readManifests(directory)).length, 2);
-  rootPackage.workspaces = ['!packages/b', 'packages/*'];
-  await json(join(directory, 'package.json'), rootPackage);
-  assert.equal((await readManifests(directory)).length, 2);
-  rootPackage.workspaces = ['packages/*', '!packages/b', 'packages/b'];
-  await json(join(directory, 'package.json'), rootPackage);
-  assert.equal((await readManifests(directory)).length, 3);
-  await json(join(directory, 'packages/b/nested/package.json'), { name: 'nested' });
-  rootPackage.workspaces = ['packages/**', '!packages/b'];
-  await json(join(directory, 'package.json'), rootPackage);
-  assert.equal((await readManifests(directory)).length, 2);
-  rootPackage.workspaces = ['!!packages\\*'];
-  await json(join(directory, 'package.json'), rootPackage);
-  assert.equal((await readManifests(directory)).length, 3);
-  rootPackage.workspaces = ['packages/*'];
-  await json(join(directory, 'package.json'), rootPackage);
-  await json(join(directory, 'packages/b/package.json'), { name: 'workspace-a' });
-  await assert.rejects(readManifests(directory), /duplicate workspace/);
-  rootPackage.workspaces = ['../outside'];
-  await json(join(directory, 'package.json'), rootPackage);
-  await assert.rejects(readManifests(directory), /stay inside/);
-  delete rootPackage.workspaces;
-  rootPackage.dependencies = ['shared'];
-  await json(join(directory, 'package.json'), rootPackage);
-  await assert.rejects(readManifests(directory), /Invalid dependencies/);
-});
-
-test('only registry semver selectors are eligible for synchronization', () => {
-  for (const value of ['1.0.0', '^1.2.3', '~1.0', '*', '>= 1.0.0 <2', '1.0 - 2.0', '1.x || 2.x', '1.2.3-beta.1+build']) {
-    assert.equal(isRegistryVersion(value), true, value);
+test('check groups select only their scripts; missing scripts skip; errors do not stop later checks/repos', async (t) => {
+  const checks = {
+    typecheck: ['types'], lint: { ts: ['ts'], css: ['css'] },
+    test: { unit: ['unit'], component: ['component'], browser: ['browser'] },
+  };
+  const f = await fixture(t, { checks });
+  const scripts = Object.fromEntries(['types', 'ts', 'css', 'unit', 'component', 'browser'].map((name) => [name, 'test']));
+  await json(join(f.parent, 'first/package.json'), { scripts });
+  for (const [group, expected] of Object.entries({
+    check: ['types', 'ts', 'css', 'unit', 'component', 'browser'], typecheck: ['types'],
+    lint: ['ts', 'css'], 'lint:ts': ['ts'], 'lint:css': ['css'], test: ['unit', 'component', 'browser'],
+    'test:unit': ['unit'], 'test:component': ['component'], 'test:browser': ['browser'],
+  })) {
+    await rm(f.calls, { force: true });
+    await f.run('check', [group, '--repo=first']);
+    assert.deepEqual((await f.recorded()).map(({ args }) => args[1]), expected, group);
   }
-  for (const value of ['file:../shared', '../archive.tgz', '1.0.0.tgz', 'https://example.com/a.tgz', 'git+ssh://example.com', 'github:owner/repo', 'npm:alias@1.0.0', 'workspace:*', 'latest', 'vnext', '']) {
-    assert.equal(isRegistryVersion(value), false, value);
+  f.configuration.checks = { lint: ['fail', 'css', 'missing'] };
+  await json(join(f.common, 'package.json'), { type: 'module', activeBook: f.configuration });
+  for (const name of ['first', 'second']) {
+    await json(join(f.parent, name, 'package.json'), { scripts: { fail: 'fail', css: 'pass' } });
   }
-});
-
-test('deps:check reads all sections/workspaces, reports drift and changes no files from another cwd', async (t) => {
-  const { root, parent, repository } = await fixture(t);
-  const before = await Promise.all(repository.manifests.map((manifest) => readFile(manifest.path, 'utf8')));
-  const records = findVersions(repository, { shared: '1.1.0', absent: '3.0.0' });
-  assert.equal(records.length, 4);
-  assert.equal(findVersions(repository, { constructor: '1.0.0' }).length, 0);
-  await assert.rejects(execute(process.execPath, [join(root, 'scripts/dependencies/check.js'), '--repo', 'repo'], { cwd: parent }), (error) => {
+  await rm(f.calls);
+  await assert.rejects(f.run('check', ['lint', '--repo=second,first']), (error) => {
     assert.equal(error.code, 1);
-    assert.match(error.stdout, /workspace-a|packages.a.package.json/);
-    assert.match(error.stdout, /peerDependencies.shared: >=1.0.0 -> 1.1.0/);
+    assert.match(error.stdout, /SKIP missing scripts: missing/);
+    assert.match(error.stderr, /Failed checks/);
 
     return true;
   });
-  const after = await Promise.all(repository.manifests.map((manifest) => readFile(manifest.path, 'utf8')));
-  assert.deepEqual(after, before);
+  const calls = await f.recorded();
+  assert.equal(calls.length, 4);
+  assert.equal(calls[0].cwd, join(f.parent, 'first'));
+  assert.equal(calls[3].args[1], 'css');
 });
 
-test('sync preserves package versions/sections and skips specials and absent dependencies', async (t) => {
-  const { repository, directory } = await fixture(t);
-  const records = findVersions(repository, { shared: '1.1.0', special: '2.0.0', absent: '3.0.0' });
-  const calls = [];
-  await synchronize(repository, records, (args, cwd) => calls.push({ args, cwd }));
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].cwd, directory);
-  assert.ok(calls[0].args.includes('--package-lock-only'));
-  assert.ok(calls[0].args.includes('--ignore-scripts'));
-  const manifests = await readManifests(directory);
-  assert.equal(manifests[0].package.version, '0.1.0');
-  assert.equal(manifests[0].package.dependencies, undefined);
-  assert.equal(manifests[0].package.devDependencies.shared, '1.1.0');
-  assert.equal(manifests[1].package.dependencies.special, 'file:local.tgz');
-  assert.equal(manifests[1].package.peerDependencies.shared, '1.1.0');
-  assert.equal(manifests[2].package.optionalDependencies.shared, '1.1.0');
-  assert.ok(manifests.every((manifest) => !manifest.package.dependencies?.absent));
-  const refreshed = { ...repository, manifests };
-  assert.equal(await synchronize(refreshed, findVersions(refreshed, { shared: '1.1.0' }), () => assert.fail()), false);
+test('bad repo paths and unknown groups are errors; checks continue for available repositories', async (t) => {
+  const f = await fixture(t, { checks: { lint: ['lint'] } });
+  await rm(join(f.parent, 'first'), { recursive: true });
+  await json(join(f.parent, 'second/package.json'), { scripts: { lint: 'pass' } });
+  await assert.rejects(f.run('check', ['lint']), { code: 1 });
+  assert.equal((await f.recorded()).length, 1);
+  await assert.rejects(f.run('check', ['unknown']), /Unknown check group/);
+  await assert.rejects(f.run('deps-sync', ['--repo=unknown']), /Unknown repository/);
 });
 
-test('npm failure restores exact manifest and lock bytes, including no-lock repositories', async (t) => {
-  const { repository, directory } = await fixture(t);
-  const before = await Promise.all(repository.manifests.map((manifest) => readFile(manifest.path, 'utf8')));
-  const lockPath = join(directory, 'package-lock.json');
-  const originalLock = '{"lockfileVersion":3,"packages":{}}\n';
-  await writeFile(lockPath, originalLock);
-  const fail = async () => {
-    await writeFile(lockPath, 'partial lock');
-    throw new Error('npm failed');
-  };
-  const records = findVersions(repository, { shared: '1.1.0' });
-  await assert.rejects(synchronize(repository, records, fail), /npm failed/);
-  assert.equal(await readFile(lockPath, 'utf8'), originalLock);
-  assert.deepEqual(await Promise.all(repository.manifests.map((manifest) => readFile(manifest.path, 'utf8'))), before);
-  await rm(lockPath);
-  await assert.rejects(synchronize(repository, records, fail), /npm failed/);
-  await assert.rejects(readFile(lockPath), { code: 'ENOENT' });
+test('init:repo copies minimal presets, preserves existing files and supports explicit force', async (t) => {
+  const f = await fixture(t);
+  await f.run('init-repo', ['--repo=new-project']);
+  const agents = join(f.parent, 'new-project/AGENTS.md');
+  assert.match(await readFile(agents, 'utf8'), /active-book-common\/AGENTS.md/);
+  await writeFile(agents, 'local rules');
+  await f.run('init-repo', ['--repo=new-project']);
+  assert.equal(await readFile(agents, 'utf8'), 'local rules');
+  await f.run('init-repo', ['--repo=new-project', '--force']);
+  assert.notEqual(await readFile(agents, 'utf8'), 'local rules');
 });
 
-test('checks follow actual package dependencies, propagate failures and keep browser tests opt-in', async () => {
-  const types = { name: 'types', directory: '/types', manifests: [{ package: { name: '@active-book/types', scripts: { typecheck: 'tsc' } } }] };
-  const core = { name: 'core', directory: '/core', manifests: [{ package: { name: '@active-book/core', devDependencies: { '@active-book/types': '*' }, scripts: { typecheck: 'tsc', 'test:unit': 'jest', 'test:browser': 'browser' } } }] };
-  const editor = { name: 'editor', directory: '/editor', manifests: [{ package: { name: 'editor', dependencies: { '@active-book/core': '*' }, scripts: {} } }] };
-  assert.deepEqual(orderRepositories([editor, core, types]), [types, core, editor]);
-  const calls = [];
-  const logs = [];
-  const result = await checkRepositories({
-    repositories: [editor, core, types], configuration: {}, log: (value) => logs.push(value),
-    npm(args, cwd) {
-      calls.push([args, cwd]);
-      if (cwd === '/core') {
-        throw new Error('npm exit 7');
-      }
-    },
+test('real npm moves prod/dev dependencies, preserves peer ranges and updates workspace manifests/locks', async (t) => {
+  const f = await fixture(t, {
+    dependencies: { runtime: '1.1.0' }, devDependencies: { tool: '1.1.0' },
+    peerDependencies: { host: '>=1.0.0 <2' }, optionalDependencies: { extra: '1.1.0' },
   });
-  assert.equal(result, 1);
-  assert.equal(calls[0][1], '/types');
-  assert.ok(calls.every(([args]) => !args.includes('test:browser') && !args.includes('install')));
-  assert.ok(logs.some((line) => line.includes('editor] SKIPPED')));
-  assert.ok(logs.some((line) => line.includes('exit 7')));
-  calls.length = 0;
-  assert.equal(await checkRepositories({ repositories: [core], configuration: {}, browser: true, log() {}, npm: (args) => calls.push(args) }), 0);
-  assert.deepEqual(calls, [['run', 'test:browser']]);
-  types.manifests[0].package.dependencies = { editor: '*' };
-  assert.throws(() => orderRepositories([editor, core, types]), /cycle/);
-});
-
-test('npm process errors retain exit status and working directory', async (t) => {
-  const directory = await temporaryDirectory(t);
-  assert.throws(() => runNpm(['run', 'missing'], directory), /exit [1-9]/);
-  assert.throws(() => runNpm(['--version'], join(directory, 'missing')), /Cannot start npm/);
-});
-
-test('real npm updates root/workspace locks with an isolated local registry and no install', async (t) => {
-  const { root, directory } = await fixture(t);
-  // Remove the intentionally nonexistent archive from this npm integration case.
-  const workspacePath = join(directory, 'packages/a/package.json');
-  const workspace = await readJson(workspacePath);
-  delete workspace.dependencies.special;
-  await json(workspacePath, workspace);
+  const archives = new Map();
+  const npm = process.env.npm_execpath;
+  for (const name of ['runtime', 'tool', 'host', 'extra']) {
+    const directory = join(f.parent, name);
+    await mkdir(directory);
+    await json(join(directory, 'package.json'), { name, version: '1.1.0' });
+    await execute(process.execPath, [npm, 'pack', '--ignore-scripts'], { cwd: directory });
+    archives.set(name, await readFile(join(directory, `${name}-1.1.0.tgz`)));
+  }
   const server = createServer((request, response) => {
-    const address = server.address();
+    const name = request.url.slice(1).split('/')[0];
+    if (request.url.endsWith('.tgz')) {
+      response.end(archives.get(name));
+      return;
+    }
     response.setHeader('content-type', 'application/json');
-    response.end(JSON.stringify({
-      name: 'shared', 'dist-tags': { latest: '1.1.0' },
-      versions: {
-        '1.1.0': { name: 'shared', version: '1.1.0', dist: { tarball: `http://127.0.0.1:${address.port}/shared.tgz`, shasum: '0'.repeat(40) } },
-      },
-    }));
+    response.end(JSON.stringify({ name, 'dist-tags': { latest: '1.1.0' }, versions: {
+      '1.1.0': { name, version: '1.1.0', dist: { tarball: `http://127.0.0.1:${server.address().port}/${name}/${name}.tgz` } },
+    } }));
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise((resolve) => server.close(resolve)));
-  const env = {
-    ...process.env,
+  await mkdir(join(f.parent, 'first/packages/a'), { recursive: true });
+  await json(join(f.parent, 'first/package.json'), {
+    name: 'first', private: true, workspaces: ['packages/*'],
+    dependencies: { runtime: '^1.0.0', tool: '^1.0.0' },
+    peerDependencies: { host: '^1.0.0' }, optionalDependencies: { extra: '^1.0.0' },
+  });
+  await json(join(f.parent, 'first/packages/a/package.json'), {
+    name: 'workspace-a', version: '1.0.0', devDependencies: { tool: '^1.0.0' },
+  });
+  await f.run('deps-sync', ['--repo=first'], {
+    npm_execpath: npm, npm_config_cache: join(f.parent, 'cache'),
     npm_config_registry: `http://127.0.0.1:${server.address().port}`,
-    npm_config_cache: join(root, 'cache'),
-    npm_execpath: findNpmCli(),
-  };
-  await execute(process.execPath, [join(root, 'scripts/dependencies/sync.js'), '--repo=repo'], { env });
-  const lock = await readJson(join(directory, 'package-lock.json'));
-  assert.equal(lock.packages[''].devDependencies.shared, '1.1.0');
-  assert.equal(lock.packages['packages/a'].dependencies.shared, '1.1.0');
-  assert.equal(lock.packages['packages/b'].optionalDependencies.shared, '1.1.0');
-  assert.equal(lock.packages['node_modules/shared'].version, '1.1.0');
-  await assert.rejects(readFile(join(directory, 'node_modules/shared/package.json')), { code: 'ENOENT' });
-  await execute(process.execPath, [join(root, 'scripts/dependencies/check.js'), '--repo=repo'], { env });
+  });
+  const manifest = JSON.parse(await readFile(join(f.parent, 'first/package.json'), 'utf8'));
+  assert.equal(manifest.dependencies.runtime, '1.1.0');
+  assert.equal(manifest.dependencies.tool, undefined);
+  assert.equal(manifest.devDependencies.tool, '1.1.0');
+  assert.equal(manifest.peerDependencies.host, '>=1.0.0 <2');
+  assert.equal(manifest.optionalDependencies.extra, '1.1.0');
+  const lock = JSON.parse(await readFile(join(f.parent, 'first/package-lock.json'), 'utf8'));
+  assert.equal(lock.packages['packages/a'].devDependencies.tool, '1.1.0');
 });
