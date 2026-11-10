@@ -72,12 +72,13 @@
     }
   },
   "exports": {
-    "./eslint": "./configs/eslint.js",
-    "./stylelint": "./configs/stylelint.js",
-    "./tsconfig.base.json": "./configs/tsconfig.base.json",
-    "./tsconfig.library.json": "./configs/tsconfig.library.json",
-    "./tsconfig.app.json": "./configs/tsconfig.app.json",
-    "./vitest": "./configs/vitest.ts"
+    "./eslint": "./configs/linters/eslint.js",
+    "./stylelint": "./configs/linters/stylelint.js",
+    "./tsconfig.base.json": "./configs/tsconfig/base.json",
+    "./tsconfig.library.json": "./configs/tsconfig/library.json",
+    "./tsconfig.app.json": "./configs/tsconfig/app.json",
+    "./vitest": "./configs/vitest.ts",
+    "./styles": "./styles/styles.scss"
   },
   "dependencies": {
     "@eslint/compat": "2.1.1",

@@ -40,6 +40,7 @@ CLI в `npm_execpath`, поэтому поиск npm и shell-экраниров
 | @active-book/common/tsconfig.library.json | настройки компилируемых библиотек core/custom-test |
 | @active-book/common/tsconfig.app.json | настройки приложений editor с Bundler resolution |
 | @active-book/common/vitest | coverage, unit/component и browser с Playwright/preview/screenshots |
+| @active-book/common/styles | базовые стили внутренних веб-приложений |
 
 Примеры наследования и границы конфигураций: [configs/README.md](configs/README.md).
 ESLint/Stylelint плагины принадлежат common. Исполняемые eslint/stylelint/vitest остаются
@@ -192,9 +193,49 @@ npm run init:repo -- --repo active-book-new-project
 документ и содержит особенности проекта. EditorConfig/Gitignore после копирования
 настраиваются локально и автоматически больше не синхронизируются.
 
+## Конфигурации и стили
+
+```text
+configs/
+├── linters/
+│   ├── eslint.js
+│   ├── stylelint.js
+│   └── style-order/
+├── tsconfig/
+│   ├── base.json
+│   ├── library.json
+│   └── app.json
+├── vitest.ts
+└── README.md
+styles/
+└── styles.scss
+```
+
+Публичные exports конфигураций сохраняют прежние имена. `configs` содержит используемые
+конфигурации, `styles` — импортируемые стили, `presets` — только начальные копируемые файлы.
+В точках входа приложений и браузерных стендов соблюдайте порядок:
+
+```ts
+import '@active-book/common/styles';
+import '@active-book/core/styles/styles.scss';
+import './styles.scss';
+```
+
+Common задаёт reset отступов, box-sizing, полноэкранные html/body/#root, Roboto с fallback,
+размер текста, overflow: hidden, наследование шрифта форм и общие правила ссылок/изображений.
+Глобальное правило SVG использует `width: inherit; height: inherit`: SVG-компоненты Vite
+получают размеры своего контейнера. Клавиатурный фокус остаётся браузерным.
+
+Core хранит темы и CSS-переменные, оформление истории, медиа и шрифтовые ресурсы.
+Его `common.scss` подключается один раз через `styles.scss`; общий reset подключается
+приложением, а не ядром. Контейнер книги задаёт Roboto и в предпросмотре редактора.
+Локальные стили редактора сохраняют Inter, runtime запрещает выделение вне редактируемых
+элементов. Сторонние reset-css и modern-css-reset больше не нужны.
+
 ## Структура и тесты
 
 - configs/ — настоящие общие конфигурации и порядок CSS-свойств.
+- styles/ — базовые стили внутренних приложений, подключаемые через export.
 - scripts/ — общий доступ к repo-конфигурации, deps-sync.js, check.js, init-repo.js.
 - presets/ — три начальных локальных файла.
 - tests/ — сценарии CLI, настоящий npm с локальным registry и загрузка конфигураций.
