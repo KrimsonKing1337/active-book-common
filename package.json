@@ -1,0 +1,41 @@
+{
+  "name": "active-book-common",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.15.0",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "deps:check": "node scripts/dependencies/check.js",
+    "deps:sync": "node scripts/dependencies/sync.js",
+    "check": "node scripts/check/run.js",
+    "check:browser": "node scripts/check/run.js --browser",
+    "test": "node --test"
+  },
+  "activeBook": {
+    "repositories": {
+      "active-book-types": "",
+      "active-book-core": "",
+      "active-book-editor": "",
+      "active-book-custom-test": ""
+    },
+    "sharedDependencies": {
+      "typescript": "5.9.3",
+      "eslint": "10.14.0",
+      "@typescript-eslint/parser": "8.72.1",
+      "@typescript-eslint/eslint-plugin": "8.72.1"
+    },
+    "checks": {
+      "active-book-types": ["typecheck", "test", "test:bundler"],
+      "active-book-core": ["typecheck", "typecheck:test", "lint:ts:check", "lint:css:check", "test:unit", "test:scss-alias"],
+      "active-book-editor": ["typecheck", "lint:ts:check", "lint:css:check", "test:unit", "test:component", "test:scripts"],
+      "active-book-custom-test": ["typecheck"]
+    },
+    "browserChecks": {
+      "active-book-core": ["test:browser"],
+      "active-book-editor": ["test:browser", "test:runtime"]
+    }
+  }
+}
