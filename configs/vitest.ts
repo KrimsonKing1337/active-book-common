@@ -1,4 +1,4 @@
-import path from 'node:path';
+import * as path from 'node:path';
 
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig, defineProject } from 'vitest/config';
@@ -45,7 +45,14 @@ export function browser(mode: string) {
         instances: [{ browser: 'chromium' }],
         expect: {
           toMatchScreenshot: {
-            resolveScreenshotPath: ({ arg, browserName, ext, platform, root, testFileName }) => {
+            resolveScreenshotPath: ({
+              arg,
+              browserName,
+              ext,
+              platform,
+              root,
+              testFileName,
+            }) => {
               const filename = `${arg}-${browserName}-${platform}${ext}`;
 
               return path.join(root, 'tests/screenshots', testFileName, filename);
