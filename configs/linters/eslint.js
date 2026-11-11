@@ -67,6 +67,7 @@ export default defineConfig({
     'import-x/no-default-export': 'warn',
     'curly': ['error', 'all'],
     'max-params': ['error', { max: 2 }],
+    'no-unused-vars': 'off',
 
     'no-unneeded-ternary': ['error', {
       defaultAssignment: true,
@@ -118,6 +119,13 @@ export default defineConfig({
     '@typescript-eslint/consistent-type-imports': ['error', {
       prefer: 'type-imports',
       fixStyle: 'separate-type-imports',
+    }],
+
+    '@typescript-eslint/no-unused-vars': ['error', {
+      varsIgnorePattern: '^_',
+      argsIgnorePattern: '^_',
+      caughtErrorsIgnorePattern: '^_',
+      destructuredArrayIgnorePattern: '^_',
     }],
   },
 });
