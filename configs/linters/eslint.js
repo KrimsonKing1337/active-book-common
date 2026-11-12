@@ -39,6 +39,10 @@ export default defineConfig({
 
     '@stylistic/curly-newline': ['error', {
       'minElements': 1,
+      TryStatementHandler: {
+        multiline: true,
+        consistent: true,
+      },
     }],
 
     '@stylistic/padding-line-between-statements': ['error', {
