@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { RuleTester } from 'eslint';
 import parser from '@typescript-eslint/parser';
 
-import { rule } from './object-newline.js';
+import { rule } from '../object-newline.js';
 
 RuleTester.describe = describe;
 RuleTester.it = it;
@@ -19,10 +19,10 @@ const tester = new RuleTester({
   },
 });
 
-const invalid = (code, output) => ({
+const invalid = (code, output, messageId = 'multiline') => ({
   code,
   output,
-  errors: [{ messageId: 'multiline' }],
+  errors: [{ messageId }],
 });
 
 tester.run('active-book/object-newline', rule, {
@@ -59,8 +59,10 @@ tester.run('active-book/object-newline', rule, {
 
     "export { a, b } from './module';",
 
-    'type Point = { x: number; y: number };',
-    'interface Point { x: number; y: number; }',
+    'type Point = {\n  x: number;\n  y: number;\n};',
+    'interface Point {\n  x: number;\n  y: number;\n}',
+    'type Empty = {\n};',
+    'type Mapper<T> = {\n  [K in keyof T]: T[K]\n};',
     'enum State { A, B }',
 
     'useEffect(() => {}, [a, b, c]);',
@@ -68,6 +70,35 @@ tester.run('active-book/object-newline', rule, {
   ],
 
   invalid: [
+    invalid(
+      'type Point = { x: number };',
+      'type Point = {\n  x: number\n};',
+      'typeMultiline',
+    ),
+
+    invalid(
+      'type Point = { x: number; y: number };',
+      'type Point = {\n  x: number;\n  y: number\n};',
+      'typeMultiline',
+    ),
+
+    invalid(
+      'type Empty = {};',
+      'type Empty = {\n};',
+      'typeMultiline',
+    ),
+
+    invalid(
+      'interface Point { x: number; }',
+      'interface Point {\n  x: number;\n}',
+      'typeMultiline',
+    ),
+
+    invalid(
+      'type Mapper<T> = { [K in keyof T]: T[K] };',
+      'type Mapper<T> = {\n  [K in keyof T]: T[K]\n};',
+      'typeMultiline',
+    ),
     invalid(
       'const point = { x: 10, y: 20, z: 30 };',
       `const point = {
@@ -156,6 +187,7 @@ tester.run('active-book/object-newline', rule, {
   y: number;
   z: number
 };`,
+      'typeMultiline',
     ),
 
     invalid(
@@ -165,6 +197,7 @@ tester.run('active-book/object-newline', rule, {
   y: number;
   z: number;
 }`,
+      'typeMultiline',
     ),
 
     invalid(
