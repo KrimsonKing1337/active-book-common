@@ -30,6 +30,12 @@ export default defineConfig({
   },
   rules: {
     'import-x/order': ['error', importOrder],
+    'import-x/no-self-import': 'error',
+
+    'import-x/no-cycle': ['error', {
+      ignoreExternal: true,
+    }],
+
     '@stylistic/eol-last': ['error', 'always'],
     '@stylistic/comma-dangle': ['error', 'always-multiline'],
     '@stylistic/semi': ['error', 'always'],
