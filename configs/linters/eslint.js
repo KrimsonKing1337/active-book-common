@@ -6,6 +6,7 @@ import parser from '@typescript-eslint/parser';
 import importX from 'eslint-plugin-import-x';
 import reactHooks from 'eslint-plugin-react-hooks';
 
+import arrayElementsPerLine from './rules/array-elements-per-line.js';
 import objectNewline from './rules/object-newline.js';
 
 export const importOrder = {
@@ -20,6 +21,7 @@ export default defineConfig({
     'import-x': importX,
     '@stylistic': stylistic,
     'react-hooks': reactHooks,
+    'array-elements-per-line': arrayElementsPerLine,
     'object-newline': objectNewline,
   },
   languageOptions: {
@@ -67,6 +69,7 @@ export default defineConfig({
       },
     ],
 
+    'array-elements-per-line/max-two': 'error',
     'object-newline/object-newline': 'error',
     'import-x/no-default-export': 'warn',
     'curly': ['error', 'all'],
