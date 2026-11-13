@@ -15,7 +15,14 @@ export const rule = {
   create(context) {
     const sourceCode = context.sourceCode;
 
-    const reportBoundaries = (node, elements, opening, closing, boundaries, requireMultiline) => {
+    const reportBoundaries = ({
+      node,
+      elements,
+      opening,
+      closing,
+      boundaries,
+      requireMultiline,
+    }) => {
       const violations = boundaries.filter(([before, after]) => {
         return before.loc.end.line === after.loc.start.line;
       });
@@ -76,7 +83,7 @@ export const rule = {
       });
     };
 
-    const check = (node, elements, requireMultiline = false) => {
+    const check = (node, { elements, requireMultiline = false }) => {
       if (!requireMultiline && elements.length < 3) {
         return;
       }
@@ -113,7 +120,14 @@ export const rule = {
         boundaries.push([elements.at(-1), closing]);
       }
 
-      reportBoundaries(node, elements, opening, closing, boundaries, requireMultiline);
+      reportBoundaries({
+        node,
+        elements,
+        opening,
+        closing,
+        boundaries,
+        requireMultiline,
+      });
     };
 
     const checkMappedType = (node) => {
@@ -133,27 +147,34 @@ export const rule = {
 
       const boundaries = [[opening, first], [last, closing]];
 
-      reportBoundaries(node, [first], opening, closing, boundaries, true);
+      reportBoundaries({
+        node,
+        elements: [first],
+        opening,
+        closing,
+        boundaries,
+        requireMultiline: true,
+      });
     };
 
     return {
-      ObjectExpression: (node) => check(node, node.properties),
-      ObjectPattern: (node) => check(node, node.properties),
+      ObjectExpression: (node) => check(node, { elements: node.properties }),
+      ObjectPattern: (node) => check(node, { elements: node.properties }),
 
       ImportDeclaration: (node) => {
         const elements = node.specifiers.filter((specifier) => {
           return specifier.type === 'ImportSpecifier';
         });
 
-        check(node, elements);
+        check(node, { elements });
       },
 
-      ExportNamedDeclaration: (node) => check(node, node.specifiers),
+      ExportNamedDeclaration: (node) => check(node, { elements: node.specifiers }),
 
-      TSTypeLiteral: (node) => check(node, node.members, true),
-      TSInterfaceBody: (node) => check(node, node.body, true),
+      TSTypeLiteral: (node) => check(node, { elements: node.members, requireMultiline: true }),
+      TSInterfaceBody: (node) => check(node, { elements: node.body, requireMultiline: true }),
       TSMappedType: checkMappedType,
-      TSEnumBody: (node) => check(node, node.members),
+      TSEnumBody: (node) => check(node, { elements: node.members }),
     };
   },
 };
