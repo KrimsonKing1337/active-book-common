@@ -73,8 +73,18 @@ export default defineConfig({
       },
     ],
 
-    '@stylistic/array-bracket-newline': ['error', { minItems: 3 }],
-    '@stylistic/array-element-newline': ['error', { minItems: 3 }],
+    '@stylistic/array-bracket-newline': ['error', {
+      minItems: 3,
+      multiline: true,
+    }],
+
+    '@stylistic/array-element-newline': ['error', {
+      minItems: 3,
+      multiline: true,
+      consistent: true,
+    }],
+
+    'object-shorthand': 'error',
     'object-newline/object-newline': 'error',
     'import-x/no-default-export': 'warn',
     'curly': ['error', 'all'],
