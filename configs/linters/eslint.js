@@ -8,15 +8,34 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 import objectNewline from './rules/object-newline.js';
 
+export { default as globals } from 'globals';
+
 export const importOrder = {
   'newlines-between': 'always-and-inside-groups',
-  groups: ['builtin', 'external', 'internal', ['parent', 'sibling', 'index']],
+  groups: [
+    'builtin',
+    'external',
+    'internal',
+    [
+      'parent',
+      'sibling',
+      'index',
+    ],
+  ],
   pathGroupsExcludedImportTypes: ['builtin'],
 };
 
 export default defineConfig({
-  extends: [js.configs.recommended, typescript.configs['flat/recommended']],
+  files: ['**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}'],
+  extends: [
+    js.configs.recommended,
+    defineConfig({
+      files: ['**/*.{ts,tsx,mts,cts}'],
+      extends: [typescript.configs['flat/recommended']],
+    }),
+  ],
   plugins: {
+    '@typescript-eslint': typescript,
     'import-x': importX,
     '@stylistic': stylistic,
     'react-hooks': reactHooks,
@@ -32,9 +51,12 @@ export default defineConfig({
     'import-x/order': ['error', importOrder],
     'import-x/no-self-import': 'error',
 
-    'import-x/no-cycle': ['error', {
-      ignoreExternal: true,
-    }],
+    'import-x/no-cycle': [
+      'error',
+      {
+        ignoreExternal: true,
+      },
+    ],
 
     '@stylistic/eol-last': ['error', 'always'],
     '@stylistic/comma-dangle': ['error', 'always-multiline'],
@@ -43,19 +65,25 @@ export default defineConfig({
     '@stylistic/quotes': ['error', 'single'],
     '@stylistic/object-curly-spacing': ['error', 'always'],
 
-    '@stylistic/curly-newline': ['error', {
-      'minElements': 1,
-      TryStatementHandler: {
-        multiline: true,
-        consistent: true,
+    '@stylistic/curly-newline': [
+      'error',
+      {
+        'minElements': 1,
+        TryStatementHandler: {
+          multiline: true,
+          consistent: true,
+        },
       },
-    }],
+    ],
 
-    '@stylistic/padding-line-between-statements': ['error', {
-      blankLine: 'always',
-      prev: '*',
-      next: 'return',
-    }],
+    '@stylistic/padding-line-between-statements': [
+      'error',
+      {
+        blankLine: 'always',
+        prev: '*',
+        next: 'return',
+      },
+    ],
 
     '@stylistic/max-len': [
       'error',
@@ -73,16 +101,22 @@ export default defineConfig({
       },
     ],
 
-    '@stylistic/array-bracket-newline': ['error', {
-      minItems: 3,
-      multiline: true,
-    }],
+    '@stylistic/array-bracket-newline': [
+      'error',
+      {
+        minItems: 3,
+        multiline: true,
+      },
+    ],
 
-    '@stylistic/array-element-newline': ['error', {
-      minItems: 3,
-      multiline: true,
-      consistent: true,
-    }],
+    '@stylistic/array-element-newline': [
+      'error',
+      {
+        minItems: 3,
+        multiline: true,
+        consistent: true,
+      },
+    ],
 
     'object-shorthand': 'error',
     'object-newline/object-newline': 'error',
@@ -91,9 +125,12 @@ export default defineConfig({
     'max-params': ['error', { max: 2 }],
     'no-unused-vars': 'off',
 
-    'no-unneeded-ternary': ['error', {
-      defaultAssignment: true,
-    }],
+    'no-unneeded-ternary': [
+      'error',
+      {
+        defaultAssignment: true,
+      },
+    ],
 
     'react-hooks/rules-of-hooks': 'error',
     'react-hooks/exhaustive-deps': 'warn',
@@ -116,10 +153,13 @@ export default defineConfig({
       },
     ],
 
-    '@stylistic/jsx-newline': ['error', {
-      prevent: true,
-      allowMultilines: true,
-    }],
+    '@stylistic/jsx-newline': [
+      'error',
+      {
+        prevent: true,
+        allowMultilines: true,
+      },
+    ],
 
     '@stylistic/jsx-closing-tag-location': 'warn',
     '@stylistic/jsx-first-prop-new-line': ['error', 'multiline'],
@@ -138,16 +178,25 @@ export default defineConfig({
       },
     ],
 
-    '@typescript-eslint/consistent-type-imports': ['error', {
-      prefer: 'type-imports',
-      fixStyle: 'separate-type-imports',
-    }],
+    '@typescript-eslint/consistent-type-imports': [
+      'error',
+      {
+        prefer: 'type-imports',
+        fixStyle: 'separate-type-imports',
+      },
+    ],
 
-    '@typescript-eslint/no-unused-vars': ['error', {
-      varsIgnorePattern: '^_',
-      argsIgnorePattern: '^_',
-      caughtErrorsIgnorePattern: '^_',
-      destructuredArrayIgnorePattern: '^_',
-    }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      {
+        varsIgnorePattern: '^_',
+        argsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+        destructuredArrayIgnorePattern: '^_',
+      },
+    ],
   },
+}, {
+  files: ['**/*.cjs'],
+  languageOptions: { sourceType: 'commonjs' },
 });

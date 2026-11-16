@@ -130,7 +130,7 @@ test('dual declarations report configuration errors; duplicate policies fail bef
   await assert.rejects(f.run('deps-sync'), /actual dependencies, devDependencies/);
   f.configuration.devDependencies = { host: '1.0.0' };
   await json(join(f.common, 'package.json'), { type: 'module', activeBook: f.configuration });
-  await assert.rejects(f.run('deps-sync'), /more than one/);
+  await assert.rejects(f.run('deps-sync'), /multiple dependency sections: host/);
   assert.deepEqual(await f.recorded(), []);
 });
 

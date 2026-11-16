@@ -152,8 +152,8 @@ check, lint, test или подгруппах; явный --repo с этими �
 | --- | --- |
 | npm run check | все группы, **включая browser/runtime** |
 | npm run typecheck | typecheck, typecheck:test |
-| npm run lint | TypeScript + CSS |
-| npm run lint:ts / lint:css | соответствующую группу линтеров без --fix |
+| npm run lint | TypeScript + JavaScript + CSS |
+| npm run lint:ts / lint:js / lint:css | соответствующую группу линтеров без --fix |
 | npm test | unit + component + browser/runtime |
 | npm run test:unit | unit, scripts, scss-alias и bundler, если script существует |
 | npm run test:component | component в jsdom |
@@ -178,6 +178,25 @@ script и exit code. Итоговый код 1 означает хотя бы о
 `test`/`check` не запускаются. В editor typecheck проверяет workspace-исходники,
 а typecheck:test запускается отдельно, без дублирования. В types для контрактов NodeNext
 добавлен test:unit; существующие test/test:bundler продолжают работать.
+
+Группа `lint:ts` вызывает только `lint:ts:check`, `lint:js` — только `lint:js:check`,
+`lint:css` — только `lint:css:check`. В core/editor TS и JS проверяются непересекающимися
+glob-шаблонами по всему репозиторию, включая тесты, инструменты и конфигурации.
+Сгенерированные каталоги исключаются локальными конфигурациями потребителей.
+Новые JS/MJS/CJS-скрипты не требуют добавления в отдельный список.
+
+Общий ESLint preset применяет TypeScript recommended только к TS/TSX/MTS/CTS,
+сохраняя `no-undef` для JavaScript. Экспорт `globals` из `@active-book/common/eslint`
+позволяет локально задать реальные Node/browser/Jest окружения без копирования списков.
+Окружение не назначается всем файлам по умолчанию. JS не требует TypeScript project;
+core задаёт свои проекты только для TS, editor сохраняет синтаксическую проверку ESLint
+и отдельные команды TypeScript. CJS использует `sourceType: commonjs`.
+
+CI в текущих репозиториях отсутствует. Общий runner пригоден для будущего CI:
+он возвращает ненулевой код при ошибках и продолжает остальные проверки.
+Линтеры сейчас обнаруживают существующий долг; его инвентаризация и план этапа 6.2
+находятся в `docs/lint-coverage-6.1.md` репозиториев core/editor. Ошибки не скрываются
+baseline-фильтром и не превращаются в успешный результат.
 
 Для браузеров заранее установите Chromium средствами Playwright. Можно явно выбрать
 имеющийся браузер через PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH (в Linux проверен /usr/bin/chromium).
