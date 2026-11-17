@@ -26,7 +26,7 @@
 
 ## Особенности active-book-common
 
-Приватный ESM-пакет `@active-book/common` на Node.js 24.15+ и npm 11+. Не создавайте workspaces.
+Приватный ESM-пакет `@active-book/common` на Node.js 24 LTS (24.15+ в ветке 24.x) и npm 11.x. Не создавайте workspaces.
 Скрипты используют стандартные API Node и npm CLI без shell-команд.
 Запускайте `npm run test:infra` для скриптов common.
 `npm run check` проверяет группы соседних репозиториев, включая браузер; подгруппы выбираются явно.
