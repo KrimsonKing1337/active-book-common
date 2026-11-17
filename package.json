@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24.15.0",
-    "npm": ">=11"
+    "node": "^24.15.0",
+    "npm": "^11.0.0"
   },
   "scripts": {
     "deps:sync": "node scripts/deps-sync.js",

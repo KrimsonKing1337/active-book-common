@@ -2,19 +2,23 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import stylistic from '@stylistic/eslint-plugin';
-import { Linter } from 'eslint';
+import { ESLint, Linter } from 'eslint';
 
 import commonConfig from '../../eslint.js';
 
 const linter = new Linter();
+const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: commonConfig });
+const { rules } = await eslint.calculateConfigForFile('example.js');
 
-const config = [{
-  plugins: { '@stylistic': stylistic },
-  rules: {
-    '@stylistic/array-bracket-newline': commonConfig.rules['@stylistic/array-bracket-newline'],
-    '@stylistic/array-element-newline': commonConfig.rules['@stylistic/array-element-newline'],
+const config = [
+  {
+    plugins: { '@stylistic': stylistic },
+    rules: {
+      '@stylistic/array-bracket-newline': rules['@stylistic/array-bracket-newline'],
+      '@stylistic/array-element-newline': rules['@stylistic/array-element-newline'],
+    },
   },
-}];
+];
 
 const verifyAndFix = (code) => linter.verifyAndFix(code, config);
 
