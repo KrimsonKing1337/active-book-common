@@ -8,6 +8,7 @@
     "npm": "^11.0.0"
   },
   "scripts": {
+    "init:repo": "node scripts/init-repo.js",
     "deps:sync": "node scripts/deps-sync.js",
     "check": "node scripts/check.js check",
     "typecheck": "node scripts/check.js typecheck",
@@ -18,8 +19,7 @@
     "test:unit": "node scripts/check.js test:unit",
     "test:component": "node scripts/check.js test:component",
     "test:browser": "node scripts/check.js test:browser",
-    "test:infra": "node --test",
-    "init:repo": "node scripts/init-repo.js"
+    "test:infra": "node --test"
   },
   "activeBook": {
     "repositories": {

@@ -5,28 +5,50 @@ import { parseArgs } from 'node:util';
 import { configuration, root } from './common.js';
 
 const { values } = parseArgs({
-  options: { repo: { type: 'string' }, force: { type: 'boolean', default: false } },
+  options: {
+    repo: {
+      type: 'string',
+    },
+    force: {
+      type: 'boolean',
+      default: false,
+    }
+  },
 });
+
+const files = ['.editorconfig', '.gitignore', 'AGENTS.md'];
 
 try {
   const name = values.repo;
+
   if (!name || basename(name) !== name || name === '.' || name === '..') {
     throw new Error('Use --repo <repository-name>');
   }
+
   const directory = resolve(root, configuration.repositories[name] || `../${name}`);
+
   mkdirSync(directory, { recursive: true });
-  for (const file of ['.editorconfig', '.gitignore', 'AGENTS.md']) {
+
+  for (const fileCur of files) {
     try {
-      copyFileSync(resolve(root, 'presets', file), resolve(directory, file), values.force ? 0 : constants.COPYFILE_EXCL);
-      console.log(`[${name}] CREATED ${file}`);
+      const presetsPath = resolve(root, 'presets', fileCur);
+      const directoryPath = resolve(directory, fileCur);
+
+      const mode = values.force ? 0 : constants.COPYFILE_EXCL;
+
+      copyFileSync(presetsPath, directoryPath, mode);
+
+      console.log(`[${name}] CREATED ${fileCur}`);
     } catch (error) {
       if (error.code !== 'EEXIST') {
         throw error;
       }
-      console.log(`[${name}] SKIP existing ${file}`);
+
+      console.log(`[${name}] SKIP existing ${fileCur}`);
     }
   }
 } catch (error) {
   console.error(error.message);
+
   process.exitCode = 1;
 }
