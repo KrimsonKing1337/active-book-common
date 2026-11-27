@@ -140,7 +140,7 @@ export default defineConfig({
 
     '@typescript-eslint/consistent-type-imports': ['error', {
       prefer: 'type-imports',
-      fixStyle: 'separate-type-imports',
+      fixStyle: 'inline-type-imports',
     }],
 
     '@typescript-eslint/no-unused-vars': ['error', {
