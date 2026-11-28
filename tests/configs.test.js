@@ -33,7 +33,7 @@ test('core/editor load the shared ESLint parser/plugins/rules and Stylelint prop
 test('TypeScript profiles retain local module resolution, targets and output paths', () => {
   for (const [name, resolution, target] of [
     ['types', typescript.ModuleResolutionKind.NodeNext, typescript.ScriptTarget.ES2022],
-    ['core', typescript.ModuleResolutionKind.Node10, typescript.ScriptTarget.ES2020],
+    ['core', typescript.ModuleResolutionKind.Node10, typescript.ScriptTarget.ES2022],
     ['editor/apps/editor', typescript.ModuleResolutionKind.Bundler, typescript.ScriptTarget.ES2022],
   ]) {
     const directory = path.resolve(root, `../active-book-${name}`);
